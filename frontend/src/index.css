@@ -1,0 +1,180 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f5f5f7;
+  color: #1a1a1a;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin: 16px 0 8px;
+}
+
+form,
+.journey-card,
+.booking-confirmation {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  margin-top: 4px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  background: #1a56db;
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.secondary {
+  background: #e5e7eb;
+  color: #1a1a1a;
+  margin-left: 8px;
+}
+
+button.link {
+  background: none;
+  color: #1a56db;
+  padding: 4px 0;
+}
+
+.error {
+  color: #c0392b;
+  font-size: 0.85rem;
+}
+
+.global-error {
+  background: #fdecea;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.autocomplete {
+  position: relative;
+}
+
+.autocomplete-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  position: absolute;
+  z-index: 10;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.autocomplete-list li {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.autocomplete-list li:hover {
+  background: #f0f4ff;
+}
+
+.journey-summary {
+  display: flex;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+.leg {
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.seat {
+  padding: 8px 0;
+  font-size: 0.8rem;
+  border-radius: 4px;
+}
+
+.seat-free {
+  background: #22c55e;
+}
+
+.seat-held {
+  background: #f59e0b;
+}
+
+.seat-booked {
+  background: #9ca3af;
+}
+
+.seat-selected {
+  outline: 3px solid #1a56db;
+}

@@ -1,0 +1,27 @@
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import Settings, get_settings
+from app.core.db import get_db
+from app.core.security import InvalidTokenError, decode_token
+from app.models.user import User
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    if credentials is None:
+        raise InvalidTokenError("Missing Authorization header")
+
+    user_id = decode_token(credentials.credentials, expected_type="access", settings=settings)
+
+    user = await db.get(User, user_id)
+    if user is None:
+        raise InvalidTokenError("User for this token no longer exists")
+
+    return user
