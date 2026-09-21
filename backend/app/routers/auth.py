@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -26,6 +27,14 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+_settings = get_settings()
+_register_rate_limit = rate_limiter(
+    "auth:register", _settings.rate_limit_auth_per_minute, _settings.rate_limit_window_seconds
+)
+_login_rate_limit = rate_limiter(
+    "auth:login", _settings.rate_limit_auth_per_minute, _settings.rate_limit_window_seconds
+)
+
 
 class EmailAlreadyRegisteredError(AppError):
     def __init__(self) -> None:
@@ -37,7 +46,12 @@ class InvalidCredentialsError(AppError):
         super().__init__("Incorrect email or password", code="invalid_credentials", status_code=401)
 
 
-@router.post("/register", response_model=UserOut, status_code=201)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=201,
+    dependencies=[Depends(_register_rate_limit)],
+)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> User:
     user = User(email=body.email, password_hash=hash_password(body.password))
     db.add(user)
@@ -52,7 +66,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     return user
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post("/login", response_model=TokenPair, dependencies=[Depends(_login_rate_limit)])
 async def login(
     body: LoginRequest, db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> TokenPair:

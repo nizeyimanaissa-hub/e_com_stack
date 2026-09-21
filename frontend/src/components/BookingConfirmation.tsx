@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, ApiError } from "../lib/api";
 import type { Booking } from "../lib/types";
+import { LiveDelayPanel } from "./LiveDelayPanel";
 
 interface Props {
   booking: Booking;
@@ -47,6 +48,7 @@ export function BookingConfirmation({ booking: initial, onDone }: Props) {
       </p>
       <p>Seats: {booking.items.length}</p>
       <p>Total: €{total.toFixed(2)}</p>
+      {booking.status === "confirmed" && <LiveDelayPanel bookingId={booking.id} />}
       {error && <p className="error">{error}</p>}
       {booking.status === "pending" && (
         <div className="actions">

@@ -5,16 +5,29 @@ from fastapi import APIRouter, Depends, Query
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.journey_source import Coordinates
+from app.adapters.journey_source import Coordinates, JourneySource
 from app.adapters.motis import MotisJourneySource
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limiter
 from app.core.redis import get_redis
 from app.models.station import Station
 from app.schemas.journey import JourneyOut
 
 router = APIRouter(prefix="/api/v1/journeys", tags=["journeys"])
+
+_settings = get_settings()
+_search_rate_limit = rate_limiter(
+    "search:journeys", _settings.rate_limit_search_per_minute, _settings.rate_limit_window_seconds
+)
+
+
+def get_journey_source(settings: Settings = Depends(get_settings)) -> JourneySource:
+    """A real dependency (not a bare instantiation inline in the route) so
+    tests can swap in a fake source via app.dependency_overrides instead of
+    hitting the real, external, rate-limited MOTIS API."""
+    return MotisJourneySource(settings)
 
 
 class StationNotFoundError(AppError):
@@ -26,7 +39,7 @@ class StationNotFoundError(AppError):
         )
 
 
-@router.get("", response_model=list[JourneyOut])
+@router.get("", response_model=list[JourneyOut], dependencies=[Depends(_search_rate_limit)])
 async def search_journeys(
     origin_eva: int = Query(..., alias="from", description="Origin station EVA id, from /api/v1/stations"),
     dest_eva: int = Query(..., alias="to", description="Destination station EVA id, from /api/v1/stations"),
@@ -34,6 +47,7 @@ async def search_journeys(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
+    source: JourneySource = Depends(get_journey_source),
 ) -> list[JourneyOut]:
     departure = when or datetime.now().astimezone()
     cache_key = f"journeys:{origin_eva}:{dest_eva}:{departure.strftime('%Y-%m-%dT%H:%M')}"
@@ -45,7 +59,6 @@ async def search_journeys(
     origin = await _station_coords(db, origin_eva)
     destination = await _station_coords(db, dest_eva)
 
-    source = MotisJourneySource(settings)
     records = await source.search(origin, destination, departure)
     journeys = [JourneyOut.model_validate(record) for record in records]
 

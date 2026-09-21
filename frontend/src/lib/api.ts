@@ -28,6 +28,15 @@ export function getAccessToken() {
   return accessToken;
 }
 
+// Native WebSocket can't set an Authorization header, so the access token
+// travels as a query param instead (see backend/app/routers/bookings.py's
+// booking_live_delays for the matching server-side tradeoff note).
+export function liveDelayWsUrl(bookingId: string): string | null {
+  if (!accessToken) return null;
+  const wsBase = API_BASE.replace(/^http/, "ws");
+  return `${wsBase}/api/v1/bookings/${bookingId}/live?token=${encodeURIComponent(accessToken)}`;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");

@@ -7,14 +7,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
+from app.core.rate_limit import rate_limiter
 from app.core.redis import get_redis
 from app.models.station import Station
 from app.schemas.station import StationOut
 
 router = APIRouter(prefix="/api/v1/stations", tags=["stations"])
 
+_settings = get_settings()
+_search_rate_limit = rate_limiter(
+    "search:stations", _settings.rate_limit_search_per_minute, _settings.rate_limit_window_seconds
+)
 
-@router.get("", response_model=list[StationOut])
+
+@router.get("", response_model=list[StationOut], dependencies=[Depends(_search_rate_limit)])
 async def search_stations(
     query: str = Query(..., min_length=2, description="Partial station name, e.g. 'Frankfurt'"),
     db: AsyncSession = Depends(get_db),

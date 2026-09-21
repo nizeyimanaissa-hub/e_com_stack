@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     seat_hold_minutes: int = 10
 
+    rate_limit_window_seconds: int = 60
+    rate_limit_auth_per_minute: int = 10
+    rate_limit_search_per_minute: int = 60
+
 
 @lru_cache
 def get_settings() -> Settings:

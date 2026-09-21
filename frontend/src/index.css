@@ -178,3 +178,30 @@ button.link {
 .seat-selected {
   outline: 3px solid #1a56db;
 }
+
+.live-delay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  margin: 10px 0;
+}
+
+.live-delay-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+.live-delay-on_time .live-delay-dot {
+  background: #22c55e;
+}
+
+.live-delay-delayed .live-delay-dot {
+  background: #f59e0b;
+}
+
+.live-delay-arrived .live-delay-dot {
+  background: #1a56db;
+}

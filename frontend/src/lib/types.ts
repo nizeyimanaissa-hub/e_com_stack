@@ -65,3 +65,10 @@ export interface User {
   email: string;
   created_at: string;
 }
+
+export interface DelayUpdate {
+  train_id: string;
+  status: "on_time" | "delayed" | "arrived";
+  delay_minutes: number;
+  updated_at: string;
+}

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,12 +10,21 @@ from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.errors import AppError
+from app.core.security import InvalidTokenError, decode_token
 from app.models.booking import Booking, BookingItem, Payment
 from app.models.train import Seat
 from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingOut
+from app.services.delay_feed import stream_delay_updates
 
 router = APIRouter(prefix="/api/v1/bookings", tags=["bookings"])
+
+# WebSocket close codes for auth/state failures. The 4000-4999 range is
+# reserved for application use (RFC 6455) -- chosen to loosely mirror the
+# HTTP statuses this project's REST errors already use for the same cases.
+WS_UNAUTHORIZED = 4401
+WS_NOT_FOUND = 4404
+WS_INVALID_STATE = 4409
 
 
 class NoSeatsRequestedError(AppError):
@@ -164,6 +173,48 @@ async def cancel_booking(
 
     booking.status = "cancelled"
     await db.commit()
+
+
+@router.websocket("/{booking_id}/live")
+async def booking_live_delays(
+    websocket: WebSocket,
+    booking_id: uuid.UUID,
+    # Native browser WebSocket can't set an Authorization header, so the
+    # access token travels as a query param instead -- the standard
+    # workaround, with the standard caveat that it can end up in proxy/server
+    # access logs. Fine for this learning project; a production app would
+    # issue a separate short-lived one-time ticket for this instead.
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    try:
+        user_id = decode_token(token, expected_type="access", settings=settings)
+    except InvalidTokenError:
+        await websocket.close(code=WS_UNAUTHORIZED)
+        return
+
+    booking = await db.get(Booking, booking_id, options=[selectinload(Booking.items)])
+    if booking is None or booking.user_id != user_id or not booking.items:
+        await websocket.close(code=WS_NOT_FOUND)
+        return
+    if booking.status != "confirmed":
+        await websocket.close(code=WS_INVALID_STATE)
+        return
+
+    # A booking's items can in principle span more than one train, but the
+    # only way to create one today (POST /bookings with a list of seat_ids)
+    # is reached via a single-journey-leg booking flow, so in practice every
+    # booking is for exactly one train -- same simplification the frontend's
+    # booking flow already makes.
+    train_id = booking.items[0].train_id
+
+    await websocket.accept()
+    try:
+        async for update in stream_delay_updates(train_id):
+            await websocket.send_json(update.model_dump(mode="json"))
+    except WebSocketDisconnect:
+        pass
 
 
 async def _get_owned_booking(booking_id: uuid.UUID, current_user: User, db: AsyncSession) -> Booking:

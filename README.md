@@ -13,6 +13,8 @@ Full project spec: [docs/spec.md](docs/spec.md)
 - Phase 5 (Booking core): done — `trains`/`coaches`/`seats` (invented seat maps), `bookings`/`booking_items`/`payments`. Concurrency-safety via `SELECT ... FOR UPDATE` row locks, verified with a real concurrent-request test (two simultaneous bookings for the same seat: exactly one `201`, one `409`). Seat holds lazily expire via a `held_until` timestamp, no background sweep needed. Full flow: `POST /api/v1/bookings` (hold) → `POST /api/v1/bookings/{id}/confirm` (mock payment, finalize) → `DELETE /api/v1/bookings/{id}` (cancel, release). `GET /api/v1/me/bookings` isolated per user (unowned bookings 404, not 403).
   - **Journey search → booking bridge**: `POST /api/v1/trains/from-journey-leg` takes a selected leg from a real `/journeys` result (line name, times, operator) and idempotently registers its `trains` row — verified end-to-end with a real ICE 78 Hannover→Hamburg leg through to a completed booking. Covers direct (transfers=0) journeys only; a leg from a journey with transfers needs its intermediate stations resolved to EVA ids too, not yet built (`POST /api/v1/trains` still exists for fully manual/hand-typed train registration).
 - Phase 6 (Frontend): done — minimal React + TypeScript + Vite app (`frontend/`), no router, just a step-based wizard: auth → journey search (station autocomplete) → results → seat picker → booking confirmation. Verified in an actual headless browser (Playwright), not just read — full flow works with zero console errors and zero failed requests: login, search Hannover Hbf → Hamburg Hbf, book a real ICE 76 seat, confirm it. The UI also correctly disables booking on journeys with transfers, matching the backend's real limitation.
+- Phase 7 (Hardening): done — a pytest suite (`backend/tests/`) covering auth, stations, journeys, bookings, adapters, security helpers, rate limiting, middleware, and metrics, including the booking race condition (two concurrent requests for the same seat: exactly one `201`, one `409`) via a real async test against Postgres + Redis, not mocks. Redis-backed fixed-window rate limiting (`app/core/rate_limit.py`, `INCR`/`EXPIRE`) on `/auth/register`, `/auth/login`, and both search endpoints, returning the standard error envelope with a `429` + `Retry-After` header. Structured JSON logging (`app/core/logging.py`) with a request-ID middleware (`app/core/middleware.py`) that generates or echoes `X-Request-ID`, tagging every log line for a request via a `contextvar` so it's traceable end-to-end. Basic Prometheus metrics at `GET /metrics` (`app/core/metrics.py`) — request counts and latency histograms labeled by route template (not raw path, to avoid unbounded cardinality from ids like `booking_id`).
+- Phase 8 (Stretch goal — WebSocket live delay updates): done — `GET /api/v1/bookings/{id}/live` (`app/routers/bookings.py`) upgrades to a WebSocket and streams simulated delay updates (`app/services/delay_feed.py`) for a confirmed booking's train: a random walk over `delay_minutes` ticking every 2s, since there's no real GTFS-RT feed behind the public MOTIS instance this project's journey search uses. Auth via a `?token=` query param (native browser WebSocket can't set an Authorization header), rejecting with a 4401/4404/4409 close code for an invalid token, someone else's booking, or a not-yet-confirmed one, mirroring the REST API's error cases. `frontend/src/components/LiveDelayPanel.tsx` connects automatically once a booking is confirmed and shows a live-updating status dot. 46 backend tests total (4 new, covering the stream and each rejection path); verified end-to-end against the live dev server too — real register → book → confirm → WebSocket connect, not just the test suite.
 
 ## Running locally
 
@@ -33,6 +35,16 @@ network on the normal port, so `DATABASE_URL` is unaffected.
 ```bash
 docker compose exec api alembic upgrade head                              # apply migrations
 docker compose exec api alembic revision --autogenerate -m "description"  # after changing a model
+```
+
+### Running tests
+
+Tests run against a separate `railboard_test` database and Redis db index (2),
+never the dev data. Create the test database once (`CREATE DATABASE railboard_test;`
+via `docker compose exec postgres psql -U railboard -d railboard`), then:
+
+```bash
+docker compose exec api pytest -v
 ```
 
 ### Syncing station data from StaDa
